@@ -82,11 +82,33 @@ jobs:
           ls -la release || true
           ls -la "build-${{ inputs.product }}/images" || true
 
+      - name: Write build metadata (FAKE vs gerçek imaj)
+        run: |
+          set -euo pipefail
+          out="thinroot/release/BUILD_INFO.txt"
+          {
+            echo "secure-gate GitHub Actions — thinRoot derlemesi"
+            echo "fake_build input: ${{ inputs.fake_build }}"
+            echo "product: ${{ inputs.product }}"
+            echo "thinroot: ${{ inputs.thinroot_repository }} @ ${{ inputs.thinroot_ref }}"
+            echo ""
+            if [ "${{ inputs.fake_build }}" = "true" ]; then
+              echo "UYARI: Bu çalışma FAKE_BUILD ile üretildi. thinroot-*.img birkaç bayt/ KB olabilir;"
+              echo "içerik boot edilebilir çekirdek değildir (upstream Makefile CI testi)."
+              echo "VirtualBox veya gerçek donanımda denemek için workflow'da fake_build=false ile tam derleme yapın."
+            else
+              echo "Tam derleme (FAKE_BUILD kapalı). generic-x86_64 çıktısı yine de ağ önyükleme (kernel .img) formatındadır;"
+              echo "doğrudan sanal diske yazılmış bir .vdi/.vmdk değildir — thinRoot README'deki iPXE/HTTP önyükleme veya resmi release yönergelerine bakın."
+            fi
+          } >"$out"
+          cat "$out"
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: thinroot-${{ inputs.product }}-${{ github.run_number }}
           path: |
+            thinroot/release/BUILD_INFO.txt
             thinroot/release/thinroot-*.img
             thinroot/release/thinroot-*.img.sha256
             thinroot/release/thinroot-*.mf
