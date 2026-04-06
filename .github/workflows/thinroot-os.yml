@@ -19,9 +19,9 @@ on:
         type: string
         default: generic-x86_64
       fake_build:
-        description: true ise FAKE_BUILD (hızlı pipeline testi); false tam imaj (uzun sürer)
+        description: "false = gerçek imaj indirilebilir (uzun sürer). true = sadece CI smoke testi (KB boyutu, boot edilemez)"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -97,8 +97,9 @@ jobs:
               echo "içerik boot edilebilir çekirdek değildir (upstream Makefile CI testi)."
               echo "VirtualBox veya gerçek donanımda denemek için workflow'da fake_build=false ile tam derleme yapın."
             else
-              echo "Tam derleme (FAKE_BUILD kapalı). generic-x86_64 çıktısı yine de ağ önyükleme (kernel .img) formatındadır;"
-              echo "doğrudan sanal diske yazılmış bir .vdi/.vmdk değildir — thinRoot README'deki iPXE/HTTP önyükleme veya resmi release yönergelerine bakın."
+              echo "Tam derleme (FAKE_BUILD kapalı)."
+              echo "generic-x86_64: thinroot-*.img = bzImage kopyasıdır; VirtualBox 'sabit disk / VDI' DEĞİLDİR — depolamaya eklenmez."
+              echo "Deneme: QEMU -kernel thinroot-*.img veya thinRoot iPXE/HTTP ağ önyükleme. Repo README: VirtualBox bölümü."
             fi
           } >"$out"
           cat "$out"
