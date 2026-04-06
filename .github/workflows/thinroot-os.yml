@@ -1,0 +1,94 @@
+# thinRoot tabanlı Secure Gate işletim sistemi imajı — GitHub Actions derlemesi
+# Upstream: https://github.com/jens-maus/thinRoot
+---
+name: Build thinRoot OS image
+
+on:
+  workflow_dispatch:
+    inputs:
+      thinroot_repository:
+        description: thinRoot kaynak repo (fork veya upstream)
+        type: string
+        default: jens-maus/thinRoot
+      thinroot_ref:
+        description: Git branch, tag veya SHA
+        type: string
+        default: master
+      product:
+        description: thinRoot PRODUCT (buildroot-external/configs/*.config)
+        type: string
+        default: generic-x86_64
+      fake_build:
+        description: true ise FAKE_BUILD (hızlı pipeline testi); false tam imaj (uzun sürer)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: thinroot-os-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout secure-gate
+        uses: actions/checkout@v4
+
+      - name: Free disk space (runner)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Checkout thinRoot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.thinroot_repository }}
+          ref: ${{ inputs.thinroot_ref }}
+          path: thinroot
+
+      - name: Install build dependencies
+        run: bash scripts/install-thinroot-build-deps.sh
+
+      - name: Cache Buildroot download directory
+        uses: actions/cache@v4
+        with:
+          path: thinroot/download
+          key: thinroot-br-dl-${{ inputs.thinroot_repository }}-${{ inputs.thinroot_ref }}-${{ hashFiles('thinroot/Makefile', 'thinroot/buildroot-external/**/*.config') }}
+          restore-keys: |
+            thinroot-br-dl-${{ inputs.thinroot_repository }}-${{ inputs.thinroot_ref }}-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildroot-ccache
+          key: thinroot-ccache-${{ inputs.thinroot_repository }}-${{ inputs.thinroot_ref }}-${{ inputs.product }}-${{ hashFiles('thinroot/Makefile', 'thinroot/buildroot-external/**/*.config') }}
+          restore-keys: |
+            thinroot-ccache-${{ inputs.thinroot_repository }}-${{ inputs.thinroot_ref }}-${{ inputs.product }}-
+
+      - name: Build release image
+        working-directory: thinroot
+        env:
+          FAKE_BUILD: ${{ inputs.fake_build && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          echo "FAKE_BUILD=${FAKE_BUILD:-<unset>}"
+          make "PRODUCT=${{ inputs.product }}" release
+          ls -la release || true
+          ls -la "build-${{ inputs.product }}/images" || true
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thinroot-${{ inputs.product }}-${{ github.run_number }}
+          path: |
+            thinroot/release/thinroot-*.img
+            thinroot/release/thinroot-*.img.sha256
+            thinroot/release/thinroot-*.mf
+          if-no-files-found: warn
+          retention-days: 14
